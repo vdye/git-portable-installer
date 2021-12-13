@@ -1,7 +1,26 @@
 #!/bin/sh
 
+# Color codes
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Constants
+USAGE="Usage: git-portable.sh <create|init|rebuild-test-repo|cleanup> [options]"
+
+
 die () {
-	echo "$*" >&2
+	echo "${RED}$*${NC}" >&2
+	exit 1
+}
+
+usage() {
+	case $1 in
+	create)
+		echo "${RED}$2${NC}\nUsage: $0 create <repo> <version>"  1>&2
+		;;
+	*)
+		echo "${RED}$1${NC}\nUsage: $0 <create|init|rebuild-test-repo|cleanup>" 1>&2
+	esac
 	exit 1
 }
 
@@ -134,65 +153,81 @@ create_test_repo() {
 
 	$git checkout -f base &&
 	$git reset --hard
+
+	return $?
 }
 
-case $1 in
-create)
-	# Download tarball to /tmp
-	github_repo=$2
-	version=$3
-	tar_path=/tmp/git-$version.tgz
+main() {
+	case $1 in
+	create)
+		# Download tarball to /tmp
+		github_repo=$2
+		version=$3
 
-	echo "Downloading source $github_repo, version $version"
-	curl -L  https://$github.com/$$github_repo/tarball/$version -o $tar_path
+		if [[ -z $github_repo ]] || [[ -z $version ]]; then
+			usage create "Must provide github repo & version"
+		fi
 
-	# Untar into /tmp
-	src_path=/tmp/git-$version/
+		tar_path=/tmp/git-$version.tgz
 
-	echo "Extracting into $src_path"
-	rm -rf $src_path
-	mkdir -p $src_path
-	tar -xzf $tar_path --strip-components=1 -C $src_path
+		echo "Downloading source $github_repo, version $version"
+		curl -L -f https://github.com/$github_repo/tarball/$version -o $tar_path \
+			|| die "Could not download git source code"
+		echo "Downloaded source to $tar_path"
 
-	# Build from source
-	echo "Extracting git from source"
-	make -C $src_path -j12
+		# Untar into /tmp
+		src_path=/tmp/git-$version/
 
-	# Install to ./sandbox
-	sandbox=$(pwd)/sandbox
-	install_path=$sandbox/install
+		echo "Extracting into $src_path"
+		rm -rf $src_path
+		mkdir -p $src_path
+		tar -xzf $tar_path --strip-components=1 -C $src_path
 
-	rm -rf $sandbox
-	mkdir -p $install_path
-	make -C $src_path prefix=$install_path install
+		# Build from source
+		echo "Extracting git from source"
+		make -C $src_path -j12 || die "Failed to build Git"
 
-	# Create test repo
-	create_test_repo $sandbox/repo $install_path/git || die "failed to initialize repo"
-	;;
-init)
-	# Create terminal in sandbox repo
-	# TODO: linux
-	sandbox=$(pwd)/sandbox
-	install_path=$sandbox/install
+		# Install to ./sandbox
+		sandbox=$(pwd)/sandbox
+		install_path=$sandbox/install
 
-	osascript -e "
-		tell application \"Terminal\"
-			do script \"export PATH=$install_path/bin:$PATH && export PS1='(git-sandbox) \$ ' && cd $sandbox/repo\"
-			activate
-		end tell
-		"
-	;;
-rebuild-test-repo)
-	# Create test repo
-	sandbox=$(pwd)/sandbox
-	install_path=$sandbox/install
-	create_test_repo $sandbox/repo $install_path/bin/git || die "failed to initialize repo"
-	;;
-cleanup)
-	# Delete everything
-	sandbox=$(pwd)/sandbox
-	rm -rf $sandbox
-	;;
-*)
-	die "Not a valid command: $1"
-esac
+		rm -rf $sandbox
+		mkdir -p $install_path
+		make -C $src_path prefix=$install_path install
+
+		# Create test repo
+		create_test_repo $sandbox/repo $install_path/bin/git || die "Failed to initialize sandbox repo"
+		;;
+	create-local)
+
+		;;
+	init)
+		# Create terminal in sandbox repo
+		# TODO: linux
+		sandbox=$(pwd)/sandbox
+		install_path=$sandbox/install
+
+		osascript -e "
+			tell application \"Terminal\"
+				do script \"export PATH=$install_path/bin:$PATH && export PS1='(git-sandbox) \$ ' && cd $sandbox/repo\"
+				activate
+			end tell
+			"
+		;;
+	rebuild-test-repo)
+		# Create test repo
+		sandbox=$(pwd)/sandbox
+		install_path=$sandbox/install
+		create_test_repo $sandbox/repo $install_path/bin/git || die "Failed to initialize sandbox repo"
+		;;
+	cleanup)
+		# Delete everything
+		sandbox=$(pwd)/sandbox
+		rm -rf $sandbox
+		;;
+	*)
+		usage "Not a valid command: $1"
+	esac
+}
+
+main $@
