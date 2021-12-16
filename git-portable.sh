@@ -4,9 +4,6 @@
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Constants
-USAGE="Usage: git-portable.sh <create|init|rebuild-test-repo|cleanup> [options]"
-
 
 die () {
 	echo "${RED}$*${NC}" >&2
@@ -16,15 +13,20 @@ die () {
 usage() {
 	case $1 in
 	create)
-		echo "${RED}$2${NC}\nUsage: $0 create <repo> <version>"  1>&2
+		usage="${RED}$2${NC}\n"
+		usage+="usage: $0 create <repo> <version>\n"
+		usage+="   or: $0 create -l </path/to/tarball>\n"
+		echo "$usage"  1>&2
 		;;
 	*)
-		echo "${RED}$1${NC}\nUsage: $0 <create|init|rebuild-test-repo|cleanup>" 1>&2
+		usage="${RED}$1${NC}\n"
+		usage+="usage: $0 <create|init|rebuild-test-repo|cleanup>\n"
+		echo "$usage" 1>&2
 	esac
 	exit 1
 }
 
-create_test_repo() {
+create_example_repo() {
 	repo_path=$1
 	git=$2
 
@@ -153,30 +155,55 @@ create_test_repo() {
 
 	$git checkout -f base &&
 	$git reset --hard
-
-	return $?
 }
 
 main() {
 	case $1 in
 	create)
-		# Download tarball to /tmp
-		github_repo=$2
-		version=$3
+		shift
 
-		if [[ -z $github_repo ]] || [[ -z $version ]]; then
-			usage create "Must provide github repo & version"
+		# Parse options
+		POSITIONAL=()
+		while [[ $# -gt 0 ]]; do
+			key="$1"
+
+			case $key in
+				-l|--local)
+					local_tar=1
+					shift # past argument
+					;;
+				*)
+					POSITIONAL+=("$1") # save it in an array for later
+					shift # past argument
+					;;
+			esac
+		done
+
+		if [[ $local_tar -eq 1 ]]; then
+			tar_path=${POSITIONAL[0]}
+
+			if [[ -z $tar_path ]]; then
+				usage create "Must provide path to source tarball"
+			fi
+		else
+			# Download tarball to /tmp
+			github_repo=${POSITIONAL[0]}
+			version=${POSITIONAL[1]}
+
+			if [[ -z $github_repo ]] || [[ -z $version ]]; then
+				usage create "Must provide github repo & version"
+			fi
+
+			tar_path=/tmp/git-$version.tgz
+
+			echo "Downloading source $github_repo, version $version"
+			curl -L -f https://github.com/$github_repo/tarball/$version -o $tar_path \
+				|| die "Could not download git source code"
+			echo "Downloaded source to $tar_path"
 		fi
 
-		tar_path=/tmp/git-$version.tgz
-
-		echo "Downloading source $github_repo, version $version"
-		curl -L -f https://github.com/$github_repo/tarball/$version -o $tar_path \
-			|| die "Could not download git source code"
-		echo "Downloaded source to $tar_path"
-
 		# Untar into /tmp
-		src_path=/tmp/git-$version/
+		src_path=/tmp/git-sandbox/
 
 		echo "Extracting into $src_path"
 		rm -rf $src_path
@@ -196,10 +223,7 @@ main() {
 		make -C $src_path prefix=$install_path install
 
 		# Create test repo
-		create_test_repo $sandbox/repo $install_path/bin/git || die "Failed to initialize sandbox repo"
-		;;
-	create-local)
-
+		create_example_repo $sandbox/example-repo $install_path/bin/git || die "Failed to initialize sandbox repo"
 		;;
 	init)
 		# Create terminal in sandbox repo
@@ -209,16 +233,16 @@ main() {
 
 		osascript -e "
 			tell application \"Terminal\"
-				do script \"export PATH=$install_path/bin:$PATH && export PS1='(git-sandbox) \$ ' && cd $sandbox/repo\"
+				do script \"export PATH='$install_path/bin:$PATH' && export PS1='(git-sandbox) \$ ' && cd $sandbox && printf '\\\33c\\\e[3J'\"
 				activate
 			end tell
 			"
 		;;
-	rebuild-test-repo)
-		# Create test repo
+	rebuild-example-repo)
+		# Create example repo
 		sandbox=$(pwd)/sandbox
 		install_path=$sandbox/install
-		create_test_repo $sandbox/repo $install_path/bin/git || die "Failed to initialize sandbox repo"
+		create_example_repo $sandbox/example-repo $install_path/bin/git || die "Failed to initialize sandbox repo"
 		;;
 	cleanup)
 		# Delete everything
