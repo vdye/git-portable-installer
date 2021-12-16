@@ -194,10 +194,10 @@ main() {
 				usage create "Must provide github repo & version"
 			fi
 
-			tar_path=/tmp/git-$version.tgz
+			tar_path="/tmp/git-$version.tgz"
 
 			echo "Downloading source $github_repo, version $version"
-			curl -L -f https://github.com/$github_repo/tarball/$version -o $tar_path \
+			curl -L -f "https://github.com/$github_repo/tarball/$version" -o "$tar_path" \
 				|| die "Could not download git source code"
 			echo "Downloaded source to $tar_path"
 		fi
@@ -208,15 +208,15 @@ main() {
 		echo "Extracting into $src_path"
 		rm -rf $src_path
 		mkdir -p $src_path
-		tar -xzf $tar_path --strip-components=1 -C $src_path
+		tar -xzf "$tar_path" --strip-components=1 -C $src_path
 
 		# Build from source
 		echo "Extracting git from source"
 		make -C $src_path -j12 || die "Failed to build Git"
 
 		# Install to ./sandbox
-		sandbox=$(pwd)/sandbox
-		install_path=$sandbox/install
+		sandbox="$(pwd)/sandbox"
+		install_path="$sandbox/install"
 
 		rm -rf $sandbox
 		mkdir -p $install_path
@@ -228,7 +228,7 @@ main() {
 	init)
 		# Create terminal in sandbox repo
 		# TODO: linux
-		sandbox=$(pwd)/sandbox
+		sandbox="$(pwd)/sandbox"
 		install_path=$sandbox/install
 
 		osascript -e "
@@ -240,13 +240,13 @@ main() {
 		;;
 	rebuild-example-repo)
 		# Create example repo
-		sandbox=$(pwd)/sandbox
+		sandbox="$(pwd)/sandbox"
 		install_path=$sandbox/install
 		create_example_repo $sandbox/example-repo $install_path/bin/git || die "Failed to initialize sandbox repo"
 		;;
 	cleanup)
 		# Delete everything
-		sandbox=$(pwd)/sandbox
+		sandbox="$(pwd)/sandbox"
 		rm -rf $sandbox
 		;;
 	*)
