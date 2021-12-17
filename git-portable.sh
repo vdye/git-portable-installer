@@ -250,7 +250,11 @@ main() {
 		rm -rf $sandbox
 		;;
 	*)
-		usage "Not a valid command: $1"
+		if [[ -z $1 ]]; then
+			usage "Please specify a command"
+		else
+			usage "Not a valid command: $1"
+		fi
 	esac
 }
 
