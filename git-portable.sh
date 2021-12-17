@@ -20,7 +20,7 @@ usage() {
 		;;
 	*)
 		usage="${RED}$1${NC}\n"
-		usage+="usage: $0 <create|init|rebuild-test-repo|cleanup>\n"
+		usage+="usage: $0 <create|run|rebuild-test-repo|cleanup>\n"
 		echo "$usage" 1>&2
 	esac
 	exit 1
@@ -225,7 +225,7 @@ main() {
 		# Create test repo
 		create_example_repo $sandbox/example-repo $install_path/bin/git || die "Failed to initialize sandbox repo"
 		;;
-	init)
+	run)
 		# Create terminal in sandbox repo
 		# TODO: linux
 		sandbox="$(pwd)/sandbox"
